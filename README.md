@@ -20,7 +20,7 @@ Install (Claude Code): copy `skills/slopless-2d` into `~/.claude/skills/` (or yo
 
 | Folder | What it is |
 |---|---|
-| `examples/flat-cel` | Same late-night desk scene twice: `A_baseline.html` (no skill) vs `B_slopless.html` (with skill). Canvas 2D; `render.py` renders frames with Playwright. |
+| `examples/flat-cel` | Same late-night desk scene three times: `A_baseline.html` (no skill), `B_slopless.html` (flat cel) and `C_material.html` (material depth: wood, plaster, knit, occlusion, light falloff). Canvas 2D; `render.py` renders frames with Playwright. |
 | `examples/paper-cut-still-here` | The desk scene as a Paper-cut Lightbox shot. |
 | `examples/paper-cut-natasilp` | Opening shot for a Thai performing-arts (นาฏศิลป์ไทย) presentation, Paper-cut Lightbox. |
 

@@ -46,6 +46,7 @@ The commands are phrases the user can type in chat; treat "relight this" the sam
 | `/stage` | Fix composition: shot size variety, layering, focal point, negative space, off-center framing. |
 | `/timing` | Fix motion: per-element easing, stagger, anticipation, follow-through, holds. |
 | `/texture` | Add intentional grain/line wobble/paper/dither so it stops looking default-vector. |
+| `/materialize` | Add the material-depth layer (section 4.9) to a flat scene: per-material surfaces, form shading, occlusion, wear, lens depth. Use when the user says it looks too simple, flat or cartoon-like. |
 | `/silhouette` | Fix character poses and design: readable black silhouette, line of action, asymmetry. |
 | `/bolder` | Push a safe, bland frame: more contrast, bigger value shapes, stronger accent, braver crop. |
 | `/quieter` | Calm an overloaded frame: remove elements, lower saturation, fewer motions at once. |
@@ -95,6 +96,7 @@ A style pack owns the LOOK (materials, value ladder, engine, native moves). This
 | Style | Source | Good for | Notes |
 |---|---|---|---|
 | Flat cel | built-in (sections 3-4) | character scenes, fast iteration | Tested. 2D canvas, renders in seconds. Banded light, cel shadow shapes, grain. |
+| Material depth | built-in (section 4.9), layered on flat cel | scenes that should feel tactile and lit: rooms, objects, close shots | Tested. Still 2D canvas and fast. Reaches "painted with real surfaces", not photoreal. Ask at `/teach-2d` whether the user wants flat or material depth; do not assume flat. |
 | Paper-cut lightbox | lemo-opuscar `styles/paper-lantern` | silhouettes, night/dusk, titles, ceremonial or quiet moods | Tested. 3D layered paper, slow without a GPU. Glow only shows where paper exists, so draw flames/bulbs as paper too. |
 | 80s cel anime, crayon picture book, risograph, others | lemo-opuscar `styles/README.md` lists them | see each STYLE.md | Not yet tested with this skill: treat the first frame as an experiment. |
 
@@ -234,6 +236,36 @@ export const stagger = (i, stepMs = 70) => i * stepMs;
 - ✅ Global grain overlay (`T.grain`), optional line wobble for a handmade feel, paper texture if the art direction says so.
 - ✅ Backgrounds carry the light and mood too — sky gradient banded, light direction on buildings, shadows on the ground.
 
+### 4.9 Material depth (when flat reads as too simple or cartoon-like)
+
+Flat fills plus one grain overlay make every surface the same substance. Material depth gives each surface its own substance and lets light fall off across it. In this mode smooth gradients ARE allowed, but only as light falloff or form shading, never as decoration.
+
+Build order (each step is a separate pass, so it can be dialled down alone):
+1. **Per-material surface**, generated once from seeded noise and applied only to that material's shape (mask the texture to the shape, blend with soft-light; neutral grey = no change):
+   - wood: rings warped by noise plus long streaks, foreshortened on receding planes; seams between planks
+   - plaster/wall: large soft mottling, fine tooth, a few hairline cracks, a damp stain where water would run
+   - fabric: a tiny repeating stitch or weave tile
+   - ceramic/metal/glass: no noise; a smooth cylinder gradient (lit side, core shadow, reflected light on the far edge) and one hard specular streak facing the light
+2. **Form shading** on anything rounded: a smooth gradient from the key light across the object, on top of the cel shapes.
+3. **Bounce light**: the lit surface under an object throws its colour up onto the object's underside.
+4. **Occlusion**: darken where surfaces meet and light cannot reach: wall-to-desk line, under a sill or lip, inside frame corners, under objects (soft wide shadow plus a tight dark contact shadow).
+5. **Penumbra**: cast shadows and light-pool edges get a small blur that grows with distance from the object. Contact shadows stay sharp.
+6. **Edges and wear**: a thin highlight where an edge faces the light, chipped or worn nicks on handled edges, inset bevels on drawers and frames (dark on the side away from light, light on the side facing it).
+7. **Small real objects**: thickness on paper, a pen, a handle, a rim. One story-specific prop per scene (see section 9).
+8. **Glass and air**: droplets that catch the key light on their light-facing side, a faint reflection of the lamp, a light shaft with a few drifting dust motes. Bloom only at the actual light source.
+9. **Lens**: far layers more blurred than the subject, near foreground blurred and darkest, a smooth falloff map (multiply) from the key light into cool dark, light vignette. Text is drawn after all of this so it stays clean.
+
+Limits that keep it from turning to mush:
+- ❌ Noise as static: if any texture is visible as salt-and-pepper at 50% zoom, halve its contrast. Texture should be felt before it is seen.
+- ❌ The same texture on every surface, or texture on skin.
+- ❌ Detail that buries the focal point or makes in-world text unreadable; re-check the squint test and every sign after adding materials.
+- ❌ Darkening the whole frame: after the falloff map, the lit area must be as bright as in the flat version.
+- ✅ Detail density follows attention: most detail near the focal point, least in the corners.
+- ✅ Palette tokens still rule: every texture, highlight and shadow is derived from palette colours with `lightOf`/`shadeOf`.
+- ✅ Characters need the same treatment as the set (form shading, cloth texture, bounce); a flat character in a textured room looks pasted in.
+
+Code pattern: build textures once at load (`fbm` noise into offscreen canvases), keep a helper that paints a texture only where a layer has pixels, and keep every strength (texture alpha, occlusion alpha, falloff) as a token so `/quieter` can lower them.
+
 ---
 
 ## 5. `/lint` — static checks
@@ -250,6 +282,7 @@ Search the code and report each hit with file:line and the fix:
 - `Math.random()` → seeded `rng()` (renders must be reproducible)
 - Fonts: Inter, Roboto, Arial, system-ui, monospace as display → art-direction fonts
 - Animated `width`/`height`/`top`/`left` → transforms
+- Material depth scenes: one global grain as the only texture, textures not masked to their material, per-frame `Math.random()` noise (flickers), text drawn before the falloff map
 
 Lint finds code smells; it can't judge the picture. Always follow with `/critique`.
 
@@ -280,7 +313,7 @@ Motion check: crop the motion strip tight on the moving subject and compare firs
 | 4 | Focal point | eye wanders | obvious in squint test |
 | 5 | Composition | centered/same distance every shot | varied shots, depth layers, intentional space |
 | 6 | Text | default centered white + shadow, pasted signs | one system; in-world text lit and worn; Thai renders correctly |
-| 7 | Texture & line | sterile default vectors | intentional, consistent with direction |
+| 7 | Texture & line | sterile default vectors; or noise that reads as static | intentional, consistent with direction; in material depth each surface reads as its own material and edges, contacts and falloff are present |
 | 8 | Motion | same easing, simultaneous, no holds | per-intent easing, stagger, holds, anticipation |
 | 9 | Character | stiff, unreadable silhouette | clear line of action, readable in black |
 | 10 | Distinctness | looks like the last piece / generic AI | clearly its own, matches the 3-word mood |
@@ -319,3 +352,4 @@ Bans remove slop; they do not create quality. Once a shot passes 30, spend remai
 3. Shot variety across the sequence: wide, medium, close, and one camera move with a reason.
 4. Sound: lamp click, rain, footsteps, music hit on the state change. Picture-only tests undersell the shot.
 5. A reference frame from the user to match or beat; ask for one when the direction is vague.
+6. If the user wants more realism than material depth gives, say so plainly: code-drawn 2D tops out at a painted look. The next step is a hybrid (image-model backgrounds or textures, with code keeping characters, light, text and motion), which costs credits and makes scene-to-scene consistency harder.
