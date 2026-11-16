@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// Baseline: written the "normal" way, no art direction, no skill.
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const W = 1920, H = 1080;
+const easeInOut = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const drops = Array.from({length:120},()=>({x:Math.random()*700+560,y:Math.random()*500+150,s:400+Math.random()*300}));
+
+window.draw = function(t){
+  // background gradient
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a1a2e'); g.addColorStop(.5,'#16213e'); g.addColorStop(1,'#0f3460');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  // window (centered)
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=30; ctx.shadowOffsetY=10;
+  ctx.fillStyle='#0b0b1a'; ctx.fillRect(560,150,800,520);
+  ctx.restore();
+  ctx.strokeStyle='#3a3a5a'; ctx.lineWidth=16; ctx.strokeRect(560,150,800,520);
+  ctx.beginPath(); ctx.moveTo(960,150); ctx.lineTo(960,670); ctx.moveTo(560,410); ctx.lineTo(1360,410); ctx.stroke();
+
+  // neon sign outside
+  ctx.save();
+  ctx.font='bold 64px sans-serif'; ctx.textAlign='center';
+  ctx.shadowColor='#ff00ff'; ctx.shadowBlur=40; ctx.fillStyle='#ff66ff';
+  ctx.fillText('ซักผ้า 24 ชม.', 760, 300);
+  ctx.shadowColor='#00ffff'; ctx.fillStyle='#66ffff';
+  ctx.fillText('OPEN', 1160, 300);
+  ctx.restore();
+
+  // rain
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=2;
+  drops.forEach(d=>{ const y = 150 + ((d.y-150 + d.s*t) % 520);
+    ctx.beginPath(); ctx.moveTo(d.x,y); ctx.lineTo(d.x,y+18); ctx.stroke(); });
+
+  // desk
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=40; ctx.shadowOffsetY=15;
+  ctx.fillStyle='#5a3e2b'; ctx.fillRect(460,760,1000,40);
+  ctx.fillStyle='#4a3020'; ctx.fillRect(500,800,920,280);
+  ctx.restore();
+
+  // lamp glow
+  const lg = ctx.createRadialGradient(700,620,10,700,620,380);
+  lg.addColorStop(0,'rgba(255,200,100,0.55)'); lg.addColorStop(1,'rgba(255,200,100,0)');
+  ctx.fillStyle=lg; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffcc66'; ctx.beginPath(); ctx.moveTo(640,600); ctx.lineTo(760,600); ctx.lineTo(730,560); ctx.lineTo(670,560); ctx.fill();
+  ctx.fillStyle='#888'; ctx.fillRect(695,600,10,160);
+
+  // character (centered)
+  const p = easeInOut(clamp((t-0.8)/0.9,0,1));
+  const headY = 690 - p*170, headX = 960 + p*10;
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=25; ctx.shadowOffsetY=8;
+  ctx.fillStyle='#6c63ff';
+  ctx.beginPath(); ctx.ellipse(960, 770 - p*60, 110, 120 + p*50, 0, Math.PI, 0); ctx.fill();
+  ctx.fillStyle='#ffd1a4';
+  ctx.beginPath(); ctx.arc(headX, headY, 60, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // eyes
+  if(p>0.5){ ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(headX-20,headY-5,8,0,7); ctx.arc(headX+20,headY-5,8,0,7); ctx.fill(); }
+
+  // caption
+  const q = easeInOut(clamp((t-2.6)/0.6,0,1));
+  ctx.save();
+  ctx.globalAlpha=q; ctx.translate(W/2, 960); ctx.scale(0.8+0.2*q, 0.8+0.2*q);
+  ctx.font='bold 64px Inter'; ctx.textAlign='center'; ctx.fillStyle='#fff';
+  ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=12; ctx.shadowOffsetY=4;
+  ctx.fillText('Day 41. Still here.', 0, 0);
+  ctx.restore();
+};
+document.fonts.ready.then(()=>{ draw(0); window.ready = true; });
+</script></body></html>
