@@ -46,7 +46,7 @@ The commands are phrases the user can type in chat; treat "relight this" the sam
 | `/stage` | Fix composition: shot size variety, layering, focal point, negative space, off-center framing. |
 | `/timing` | Fix motion: per-element easing, stagger, anticipation, follow-through, holds. |
 | `/texture` | Add intentional grain/line wobble/paper/dither so it stops looking default-vector. |
-| `/materialize` | Add the material-depth layer (section 4.9) to a flat scene: per-material surfaces, form shading, occlusion, wear, lens depth. Use when the user says it looks too simple, flat or cartoon-like. |
+| `/materialize` | Add the material-depth layer (section 4.9) to a flat scene: per-material surfaces, form shading, occlusion, wear, lens depth. Starts at the `clean` level. Use when the user says it looks too simple, flat or cartoon-like. |
 | `/silhouette` | Fix character poses and design: readable black silhouette, line of action, asymmetry. |
 | `/bolder` | Push a safe, bland frame: more contrast, bigger value shapes, stronger accent, braver crop. |
 | `/quieter` | Calm an overloaded frame: remove elements, lower saturation, fewer motions at once. |
@@ -240,6 +240,12 @@ export const stagger = (i, stepMs = 70) => i * stepMs;
 
 Flat fills plus one grain overlay make every surface the same substance. Material depth gives each surface its own substance and lets light fall off across it. In this mode smooth gradients ARE allowed, but only as light falloff or form shading, never as decoration.
 
+Levels (token `material.level`; default `clean`):
+- `clean` (default): surfaces stay smooth and the frame stays tidy. Depth comes from light and precision: form shading, occlusion, penumbra, falloff, crisp edge highlights, small exact objects. Texture goes only on one or two hero materials near the focal point, at low strength (wood grain about half, cloth weave faint); walls get a barely visible variation at most. No cracks, stains, nicks or heavy grain unless the story needs wear.
+- `rich`: visible texture on most materials plus wear. Only when the user asks for gritty, old or rough.
+
+Start at `clean`, show the frame, and raise only what the user asks for. If the user says it looks cluttered, rough or too much, drop a level: remove wear first, then texture, and keep the light passes (they are what gives depth without mess).
+
 Build order (each step is a separate pass, so it can be dialled down alone):
 1. **Per-material surface**, generated once from seeded noise and applied only to that material's shape (mask the texture to the shape, blend with soft-light; neutral grey = no change):
    - wood: rings warped by noise plus long streaks, foreshortened on receding planes; seams between planks
@@ -257,6 +263,7 @@ Build order (each step is a separate pass, so it can be dialled down alone):
 
 Limits that keep it from turning to mush:
 - ❌ Noise as static: if any texture is visible as salt-and-pepper at 50% zoom, halve its contrast. Texture should be felt before it is seen.
+- ❌ Roughness everywhere: detailed is not the same as rough. If every surface is bumpy the frame reads as dirty, not real. Smooth surfaces with exact edges and good light look more finished than textured ones.
 - ❌ The same texture on every surface, or texture on skin.
 - ❌ Detail that buries the focal point or makes in-world text unreadable; re-check the squint test and every sign after adding materials.
 - ❌ Darkening the whole frame: after the falloff map, the lit area must be as bright as in the flat version.
