@@ -1,4 +1,4 @@
-# vdo-director
+# slopless
 
 Agent skills for directing code-made video and animation without the generic "AI slop" look.
 
