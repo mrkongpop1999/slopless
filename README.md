@@ -14,6 +14,9 @@ Art-direct, build and critique code-drawn 2D graphics and animation (SVG, Canvas
 - **`/lint`** for banned defaults in code, **`/critique`** renders real frames and scores them /40, loops until ≥ 30.
 - Targeted commands: `/relight` `/reshadow` `/palette` `/typeset` `/stage` `/timing` `/texture` `/silhouette` `/bolder` `/quieter` `/distinct` `/polish`.
 
+### `skills/slopless-brief`
+Runs before any build. Asks for references (or grills for purpose when there are none), fills gaps with named defaults, picks a colour grade from the mood (9 presets in `grades.json`; `apply_grade.py` renders them on your own frame or derives a rough grade from a reference image), writes `.brief.md`, and gets a go on one style frame before real work starts.
+
 Install (Claude Code): copy `skills/slopless-2d` into `~/.claude/skills/` (or your project's `.claude/skills/`).
 
 ## Examples
@@ -21,6 +24,7 @@ Install (Claude Code): copy `skills/slopless-2d` into `~/.claude/skills/` (or yo
 | Folder | What it is |
 |---|---|
 | `examples/flat-cel` | Same late-night desk scene three times: `A_baseline.html` (no skill), `B_slopless.html` (flat cel) `D_refined.html` (material depth, clean level: the recommended middle) and `C_material.html` (material depth, rich level: heavy texture). Canvas 2D; `render.py` renders frames with Playwright. |
+| `examples/nature` | "Golden Meadow": backlit meadow, a wind gust through about 4,500 grass blades, light shafts. Canvas 2D, clean level, no noise textures. |
 | `examples/paper-cut-still-here` | The desk scene as a Paper-cut Lightbox shot. |
 | `examples/paper-cut-natasilp` | Opening shot for a Thai performing-arts (นาฏศิลป์ไทย) presentation, Paper-cut Lightbox. |
 
