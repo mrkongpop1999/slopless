@@ -1,0 +1,11 @@
+{
+  "clean-neutral": {"mood": "clear, informative, honest", "shadows": ["#1c2430", 0.06], "highlights": ["#fff6e8", 0.05], "saturation": 1.0, "contrast": 1.06, "fade": 0.0, "wash": ["#ffffff", 0], "exposure": 1.0},
+  "golden-warm": {"mood": "hopeful, nostalgic, calm", "shadows": ["#3a2a1a", 0.14], "highlights": ["#ffd9a0", 0.16], "saturation": 1.05, "contrast": 1.05, "fade": 0.03, "wash": ["#ffcf8a", 0.3], "exposure": 1.0},
+  "cool-dawn": {"mood": "quiet, lonely, focused", "shadows": ["#1b2f45", 0.18], "highlights": ["#dfeaf2", 0.1], "saturation": 0.82, "contrast": 1.04, "fade": 0.04, "wash": ["#b4cdea", 0.4], "exposure": 0.94},
+  "pastel-storybook": {"mood": "gentle, playful, childlike", "shadows": ["#5b7f86", 0.14], "highlights": ["#ffe6dc", 0.14], "saturation": 0.92, "contrast": 0.9, "fade": 0.1, "wash": ["#ffdfe6", 0.25], "exposure": 1.0},
+  "moody-green": {"mood": "tense, uneasy, mysterious", "shadows": ["#12302a", 0.22], "highlights": ["#e9e2b8", 0.08], "saturation": 0.72, "contrast": 1.12, "fade": 0.02, "wash": ["#a9c79c", 0.5], "exposure": 0.86},
+  "dusk-rose": {"mood": "bittersweet, romantic, ending", "shadows": ["#3a2748", 0.18], "highlights": ["#ffc9a8", 0.16], "saturation": 0.95, "contrast": 1.03, "fade": 0.05, "wash": ["#f2b0c6", 0.4], "exposure": 0.95},
+  "heritage-gold": {"mood": "ceremonial, historical, dignified", "shadows": ["#2b170d", 0.2], "highlights": ["#f2c66a", 0.18], "saturation": 0.88, "contrast": 1.1, "fade": 0.02, "wash": ["#eec070", 0.45], "exposure": 0.92},
+  "cold-dread": {"mood": "fear, dread, isolation", "shadows": ["#06181c", 0.26], "highlights": ["#b9d2cf", 0.1], "saturation": 0.55, "contrast": 1.2, "fade": 0.0, "wash": ["#8fbcc0", 0.6], "exposure": 0.74},
+  "ink-mono": {"mood": "serious, memory, documentary", "shadows": ["#1a1612", 0.1], "highlights": ["#f1e7d3", 0.1], "saturation": 0.08, "contrast": 1.16, "fade": 0.03, "wash": ["#ffffff", 0], "exposure": 0.95}
+}

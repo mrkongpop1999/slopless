@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// "Golden Meadow" — slopless-2d, material depth level: clean. Detail comes from light and exact shapes, not noise.
+// ===================== TOKENS (.art-direction.md) =====================
+const P = { skyTop:'#9DB4B6', skyWarm:'#F4D59A', sun:'#FFF1C9', far:'#B9B49A', leafShade:'#3E5B3A', leafLit:'#A9B84F', leafBack:'#E6E07A',
+  grass:'#6E7F3E', grassLit:'#C9B865', bark:'#3A3528', water:'#7E9AA0', ink:'#1E2318' };
+const T = { sun:{x:560,y:512}, seed:7, gust:{start:1.0, speed:720, width:380}, breeze:.22 };
+// ===================== HELPERS =====================
+const hex2rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const rgb2hex=a=>'#'+a.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+const mix=(a,b,t)=>{const A=hex2rgb(a),B=hex2rgb(b);return rgb2hex(A.map((v,i)=>v+(B[i]-v)*t))};
+const rgba=(hex,a)=>{const[r,g,b]=hex2rgb(hex);return`rgba(${r},${g},${b},${a})`};
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*t, ss=t=>{t=clamp(t);return t*t*(3-2*t)};
+const R=mulberry32(T.seed);
+const lat=Array.from({length:512},()=>R());
+const n1=x=>{const i=Math.floor(x),f=x-i,u=f*f*(3-2*f);return lerp(lat[i&511],lat[(i+1)&511],u)};
+const fbm1=(x,o=4)=>{let s=0,a=.5,n=0;for(let k=0;k<o;k++){s+=a*n1(x+k*37.1);n+=a;x*=2;a*=.5}return s/n};
+const c=document.getElementById('c'),ctx=c.getContext('2d'),W=1920,H=1080;
+
+// wind: gentle breeze + one gust that rolls left → right
+function wind(x,t){ const gx=-T.gust.width*1.5+(t-T.gust.start)*T.gust.speed, g=Math.exp(-(((x-gx)/T.gust.width)**2))*(t>T.gust.start-.6?1:0);
+  return T.breeze*Math.sin(t*1.25+x*.008)+.12*Math.sin(t*2.9+x*.021)+g*1.15; }
+
+// ===================== STATIC SEEDED SCENE DATA =====================
+const ridge=(y0,amp,sc,seed)=>{const p=[];for(let x=-40;x<=W+40;x+=16)p.push([x,y0-fbm1(x*sc+seed)*amp]);return p};
+const RIDGE1=ridge(548,70,.0022,3), RIDGE2=ridge(572,46,.0036,11);
+const treeline=[];for(let row=0;row<2;row++)for(let x=-30;x<W+40;){const r=(row?7:10)+R()*(row?12:20);treeline.push({x,y:(row?596:586)-R()*(row?6:18)-(x>1100?6:0),r});x+=r*(.55+R()*.5);}
+// open gap in the treeline near the sun so the light breaks through
+for(const t of treeline){ if(Math.abs(t.x-T.sun.x)<130) t.r*=.45; }
+const hills=[{y:598,amp:10,sc:.003,top:'#D9C98A',bot:'#A8A363',s:5},{y:650,amp:26,sc:.0022,top:'#C9B865',bot:'#6E7C40',s:9},{y:760,amp:40,sc:.0016,top:'#8E9A4C',bot:'#3F5230',s:13}]
+  .map(h=>({...h,pts:ridge(h.y,h.amp,h.sc,h.s)}));
+// stream: centerline from the far meadow to bottom-left
+const STREAM=[[748,603],[715,622],[760,652],[700,700],[600,752],[640,820],[520,900],[300,1000],[180,1110]];
+const streamW=y=>lerp(5,170,clamp((y-604)/480)**1.5);
+function spline(P,n){const o=[];for(let i=0;i<P.length-1;i++){const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];for(let s=0;s<n;s++){const u=s/n,u2=u*u,u3=u2*u;o.push([0,1].map(k=>.5*((2*p1[k])+(-p0[k]+p2[k])*u+(2*p0[k]-5*p1[k]+4*p2[k]-p3[k])*u2+(-p0[k]+3*p1[k]-3*p2[k]+p3[k])*u3)))}}o.push(P[P.length-1]);return o}
+const STREAM_C=spline(STREAM,14);
+// tree: trunk, branches, foliage clumps (back clumps first)
+const TREE={x:1440,base:836};
+const clumps=[[1290,470,95,0],[1600,450,105,0],[1440,380,120,0],[1360,560,85,1],[1540,560,95,1],[1450,470,110,1],[1660,560,70,1],[1240,575,60,1],[1530,340,85,1],[1350,350,80,1]]
+  .map(([x,y,r,f])=>{const leaves=[];const rr=mulberry32(Math.round(x*7+y));for(let i=0;i<Math.round(r*r/38);i++){const a=rr()*Math.PI*2,d=Math.sqrt(rr())*r;leaves.push({dx:Math.cos(a)*d,dy:Math.sin(a)*d*.86,s:5+rr()*6,rot:rr()*6.28,j:rr()})}return{x,y,r,front:f,leaves}});
+// grass: mid-distance and foreground blades
+const blades=[];
+function addBlades(n,y0,y1,h0,h1,w0,w1){for(let i=0;i<n;i++){const y=lerp(y0,y1,R()**.8),k=(y-y0)/(y1-y0);blades.push({x:-30+R()*(W+60),y,h:lerp(h0,h1,k)*(.6+R()*.7),w:lerp(w0,w1,k)*(.7+R()*.6),lean:(R()-.5)*.5,ph:R()*6,tone:R(),near:k,far:y<860})}}
+addBlades(3200,640,860,6,20,.7,1.5); addBlades(1300,860,1110,40,150,3,7);
+blades.sort((a,b)=>a.y-b.y);
+const flowers=Array.from({length:26},()=>({x:80+R()*1100,y:880+R()*170,h:60+R()*70,c:R()<.7?'#F3EEDD':'#F0CF5A',ph:R()*6}));
+const motes=Array.from({length:60},()=>({x:R()*W,y:500+R()*500,r:.8+R()*1.6,ph:R()*6,v:6+R()*14}));
+const birds=Array.from({length:3},(_,i)=>({x:820+i*46,y:360+i*14,s:6+R()*3,ph:R()*6}));
+const sunDir=(x,y)=>{const dx=T.sun.x-x,dy=T.sun.y-y,l=Math.hypot(dx,dy);return[dx/l,dy/l]};
+
+// grass blades: shaded body, sun-facing edge glows, tips lag the wind
+function drawBlades(t,sunI,keep){ ctx.lineCap='round';
+  blades.forEach(b=>{ if(!keep(b)) return; const w=wind(b.x,t-b.h*.0015)+b.lean, bend=w*b.h*.55, tipx=b.x+bend, tipy=b.y-b.h*(1-Math.min(.35,Math.abs(w)*.12));
+    const mx=b.x+bend*.35, my=b.y-b.h*.55, base=b.far?mix(P.grass,P.grassLit,.45+b.tone*.3):mix(mix(P.grass,P.ink,.28),P.grass,b.tone);
+    ctx.fillStyle=base; ctx.beginPath(); ctx.moveTo(b.x-b.w,b.y); ctx.quadraticCurveTo(mx-b.w*.5,my,tipx,tipy); ctx.quadraticCurveTo(mx+b.w*.5,my,b.x+b.w,b.y); ctx.fill();
+    const glow=(b.far?.25:.6)*sunI*(.5+.5*b.tone);
+    ctx.strokeStyle=rgba(mix(P.grassLit,P.leafBack,.5),glow); ctx.lineWidth=Math.max(.6,b.w*.35);
+    ctx.beginPath(); ctx.moveTo(lerp(b.x,mx,.5)-b.w*.6,lerp(b.y,my,.5)); ctx.quadraticCurveTo(mx-b.w*.55,my,tipx,tipy); ctx.stroke(); }); }
+// ===================== DRAW =====================
+function poly(pts,close){ctx.beginPath();ctx.moveTo(...pts[0]);for(const p of pts.slice(1))ctx.lineTo(...p);if(close)ctx.closePath();}
+window.draw=function(t){
+  const cover=1-ss((t-.2)/1.8);                // a cloud slides off the sun in the first 2 s
+  const sunI=lerp(1,.55,cover);
+  const k=ss(t/6.5), zoom=1+.03*k;
+  ctx.setTransform(zoom,0,0,zoom,-(zoom-1)*W*.42,-(zoom-1)*H*.55); ctx.globalAlpha=1; ctx.filter='none'; ctx.globalCompositeOperation='source-over';
+
+  // ---- sky: falloff toward the sun (allowed: it is light, not decoration)
+  let g=ctx.createLinearGradient(0,0,0,620); g.addColorStop(0,P.skyTop); g.addColorStop(.62,mix(P.skyTop,P.skyWarm,.75)); g.addColorStop(1,P.skyWarm);
+  ctx.fillStyle=g; ctx.fillRect(-60,-60,W+120,720);
+  ctx.globalCompositeOperation='screen';
+  g=ctx.createRadialGradient(T.sun.x,T.sun.y,10,T.sun.x,T.sun.y,820); g.addColorStop(0,rgba(P.sun,1*sunI)); g.addColorStop(.18,rgba(P.skyWarm,.7*sunI)); g.addColorStop(1,rgba(P.skyWarm,0));
+  ctx.fillStyle=g; ctx.fillRect(-60,-60,W+120,720); ctx.globalCompositeOperation='source-over';
+  // clouds: soft, lit from below/sun side
+  [[T.sun.x-30-t*120*.9+60,T.sun.y-14,260,34,.85],[1250+t*8,210,420,46,.5],[300+t*10,150,300,30,.35],[1700+t*6,300,260,26,.35]].forEach(([x,y,w,h,a],i)=>{
+    ctx.filter='blur(14px)'; ctx.fillStyle=rgba(mix(P.skyTop,'#FFFFFF',.35),a); ctx.beginPath(); ctx.ellipse(x,y,w,h,0,0,7); ctx.fill();
+    ctx.fillStyle=rgba(mix(P.skyWarm,P.sun,.5),a*.8); ctx.beginPath(); ctx.ellipse(x+(T.sun.x-x)*.04,y+h*.45,w*.85,h*.42,0,0,7); ctx.fill(); ctx.filter='none'; });
+  // sun disc
+  ctx.fillStyle=rgba(P.sun,.92); ctx.beginPath(); ctx.arc(T.sun.x,T.sun.y,34,0,7); ctx.fill();
+  // far birds
+  ctx.strokeStyle=rgba(mix(P.ink,P.far,.55),.7); ctx.lineWidth=1.6; ctx.lineCap='round';
+  birds.forEach(b=>{const x=b.x+t*22,y=b.y-t*3,f=Math.sin(t*7+b.ph)*.6; ctx.beginPath(); ctx.moveTo(x-b.s,y-b.s*f*.6); ctx.quadraticCurveTo(x-b.s*.4,y-b.s*.3,x,y); ctx.quadraticCurveTo(x+b.s*.4,y-b.s*.3,x+b.s,y-b.s*f*.6); ctx.stroke();});
+
+  // ---- far ridges: atmospheric perspective (lighter, warmer, low contrast)
+  [[RIDGE1,mix(P.far,P.skyWarm,.45)],[RIDGE2,mix(P.far,P.leafShade,.18)]].forEach(([pts,col])=>{ctx.fillStyle=col; poly([...pts,[W+40,700],[-40,700]],1); ctx.fill();});
+  // ---- treeline: dark mass, rim of warm light only on the edges facing the sun
+  const tlCol=mix(P.leafShade,P.far,.38);
+  treeline.forEach(tr=>{ctx.fillStyle=tlCol; ctx.beginPath(); ctx.arc(tr.x,tr.y,tr.r,0,7); ctx.fill();});
+  ctx.fillStyle=tlCol; ctx.fillRect(-40,588,W+80,30);
+  treeline.forEach(tr=>{const[dx,dy]=sunDir(tr.x,tr.y),a=Math.atan2(dy,dx),near=clamp(1-Math.abs(tr.x-T.sun.x)/520)**1.5; if(near<=0)return;
+    ctx.strokeStyle=rgba(mix(P.leafBack,P.sun,.5),.75*near*sunI); ctx.lineWidth=1+2.2*near; ctx.beginPath(); ctx.arc(tr.x,tr.y,tr.r-1,a-1.1,a+1.1); ctx.stroke();});
+
+  // ---- meadow hills (falloff top→bottom; sun-facing crests catch a thin bright line)
+  hills.forEach((h,i)=>{ g=ctx.createLinearGradient(0,h.y-h.amp,0,1100); g.addColorStop(0,h.top); g.addColorStop(1,h.bot);
+    ctx.fillStyle=g; poly([...h.pts,[W+40,1120],[-40,1120]],1); ctx.fill();
+    ctx.strokeStyle=rgba(mix(P.grassLit,P.sun,.5),(.55-i*.12)*sunI); ctx.lineWidth=2.2-i*.4; poly(h.pts); ctx.stroke();
+    ctx.save(); poly([...h.pts,[W+40,1120],[-40,1120]],1); ctx.clip(); g=ctx.createLinearGradient(0,h.y-h.amp,0,h.y+90); g.addColorStop(0,rgba(P.ink,0)); g.addColorStop(1,rgba(P.ink,.14)); ctx.fillStyle=g; ctx.fillRect(-40,h.y-h.amp,W+80,120); ctx.restore(); });
+
+  // ---- stream: reflects the sky, darker near bank, glints under the sun line
+  const left=[],right=[];
+  STREAM_C.forEach(([x,y])=>{const w=streamW(y)/2;left.push([x-w,y]);right.push([x+w,y]);});
+  const sp=[...left,...right.reverse()];
+  g=ctx.createLinearGradient(0,600,0,1100); g.addColorStop(0,mix(P.skyWarm,P.sun,.3)); g.addColorStop(.35,mix(P.skyTop,P.skyWarm,.5)); g.addColorStop(1,mix(P.water,P.ink,.25));
+  ctx.fillStyle=g; poly(sp,1); ctx.fill();
+  ctx.save(); poly(sp,1); ctx.clip();
+  // reflection of treeline/bank: dark band along the far (upper) bank
+  ctx.strokeStyle=rgba(P.ink,.35); ctx.lineWidth=10; ctx.filter='blur(4px)'; poly(left); ctx.stroke(); ctx.filter='none';
+  // ripples and glints (moving), denser near the sun's reflection line
+  for(let i=0;i<40;i++){const rr=lat[i*3%512],y=610+((rr*480+t*(14+lat[i*5%512]*16))%480),cx=(STREAM_C.reduce((b,q)=>Math.abs(q[1]-y)<Math.abs(b[1]-y)?q:b)[0])+(lat[i*7%512]-.5)*streamW(y)*.8,w=2+streamW(y)*.07*lat[(i*11)%512];
+    const near=clamp(1-Math.abs(cx-T.sun.x)/240); ctx.strokeStyle=rgba(P.sun,(.08+.6*near)*sunI*(.5+.5*Math.sin(t*3+i))); ctx.lineWidth=1.2+y/900; ctx.beginPath(); ctx.moveTo(cx-w,y); ctx.lineTo(cx+w,y); ctx.stroke();}
+  ctx.restore();
+  ctx.strokeStyle=rgba(P.ink,.35); ctx.lineWidth=3; poly(right.slice().reverse()); ctx.stroke();    // near bank lip: occlusion
+
+  // ---- god rays from the sun through the treeline gap
+  ctx.save(); ctx.globalCompositeOperation='screen'; ctx.filter='blur(12px)';
+  for(let i=0;i<13;i++){const a0=.04+i*.085+Math.sin(t*.4+i)*.01, a1=a0+.035+lat[i*13%512]*.04, L=1500, al=(.16+.1*lat[i*17%512])*(.55+.45*Math.sin(t*.7+i*1.7))*sunI;
+    g=ctx.createLinearGradient(T.sun.x,T.sun.y,T.sun.x+Math.cos(a0)*L,T.sun.y+Math.sin(a0)*L); g.addColorStop(0,rgba(P.sun,al*2)); g.addColorStop(1,rgba(P.sun,0));
+    ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(T.sun.x,T.sun.y); ctx.lineTo(T.sun.x+Math.cos(a0)*L,T.sun.y+Math.sin(a0)*L); ctx.lineTo(T.sun.x+Math.cos(a1)*L,T.sun.y+Math.sin(a1)*L); ctx.closePath(); ctx.fill();}
+  ctx.restore();
+
+  drawBlades(t,sunI,b=>b.y<TREE.base);
+  // ---- tree: long shadow toward the viewer, trunk, foliage (back clumps first)
+  const sway=wind(TREE.x,t-.15);
+  ctx.save(); ctx.globalCompositeOperation='multiply'; ctx.filter='blur(16px)'; ctx.fillStyle=rgba(mix(P.leafShade,P.ink,.3),.55);
+  ctx.beginPath(); ctx.moveTo(TREE.x-40,TREE.base); ctx.quadraticCurveTo(TREE.x+260,TREE.base+120,TREE.x+520,TREE.base+260); ctx.lineTo(TREE.x+860,TREE.base+300); ctx.quadraticCurveTo(TREE.x+380,TREE.base+40,TREE.x+60,TREE.base-8); ctx.closePath(); ctx.fill(); ctx.restore();
+  ctx.fillStyle=rgba(P.ink,.5); ctx.filter='blur(5px)'; ctx.beginPath(); ctx.ellipse(TREE.x+10,TREE.base+4,90,12,0,0,7); ctx.fill(); ctx.filter='none';
+  const barkS=mix(P.bark,P.ink,.2), barkL=mix(P.bark,P.leafBack,.35);
+  const limb=(x0,y0,x1,y1,w0,w1)=>{const sx=sway*8*(1-y1/900);ctx.fillStyle=barkS;ctx.beginPath();ctx.moveTo(x0-w0,y0);ctx.quadraticCurveTo((x0+x1)/2-w0*.6,(y0+y1)/2,x1-w1+sx,y1);ctx.lineTo(x1+w1+sx,y1);ctx.quadraticCurveTo((x0+x1)/2+w0*.6,(y0+y1)/2,x0+w0,y0);ctx.fill();
+    ctx.strokeStyle=rgba(barkL,.8*sunI);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x0-w0+1,y0);ctx.quadraticCurveTo((x0+x1)/2-w0*.6+1,(y0+y1)/2,x1-w1+sx+1,y1);ctx.stroke();};
+  limb(TREE.x,TREE.base+6,TREE.x+6,560,34,20); limb(TREE.x+2,640,TREE.x-140,520,16,7); limb(TREE.x+6,610,TREE.x+170,500,15,6); limb(TREE.x+6,560,TREE.x-40,400,12,5); limb(TREE.x+6,560,TREE.x+90,380,11,5);
+  clumps.forEach(cl=>{const cx=cl.x+sway*(cl.front?14:9)*(1-(cl.y-300)/700), cy=cl.y+Math.abs(sway)*2;
+    const[sx,sy]=sunDir(cx,cy);
+    // occlusion core
+    ctx.fillStyle=mix(P.leafShade,P.ink,cl.front?.25:.4); ctx.beginPath(); ctx.ellipse(cx,cy,cl.r*.86,cl.r*.74,0,0,7); ctx.fill();
+    cl.leaves.forEach(l=>{const nx=l.dx/cl.r,ny=l.dy/cl.r,d=nx*sx+ny*sy,rim=Math.hypot(nx,ny);
+      let col; if(d>.45&&rim>.62) col=mix(P.leafLit,P.leafBack,clamp((d-.45)*2.2)*sunI);
+      else if(d>.05) col=mix(P.leafShade,P.leafLit,clamp(d*1.4)*(.55+.45*sunI));
+      else col=mix(P.leafShade,P.ink,clamp(-d*.5+(1-rim)*.35));
+      if(!cl.front) col=mix(col,P.ink,.12);
+      const fl=Math.sin(t*4+l.j*9+cl.x*.01)*.25*(.3+Math.abs(sway));
+      ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx+l.dx,cy+l.dy,l.s,l.s*.55,l.rot+fl,0,7); ctx.fill();});
+  });
+
+  drawBlades(t,sunI,b=>b.y>=TREE.base);
+  if(0) blades.forEach(b=>{const w=wind(b.x,t-b.h*.0015)+b.lean, bend=w*b.h*.55, tipx=b.x+bend, tipy=b.y-b.h*(1-Math.min(.35,Math.abs(w)*.12));
+    const mx=b.x+bend*.35, my=b.y-b.h*.55, base=b.far?mix(P.grass,P.grassLit,.25+b.tone*.3):mix(mix(P.grass,P.ink,.28),P.grass,b.tone);
+    ctx.fillStyle=base; ctx.beginPath(); ctx.moveTo(b.x-b.w,b.y); ctx.quadraticCurveTo(mx-b.w*.5,my,tipx,tipy); ctx.quadraticCurveTo(mx+b.w*.5,my,b.x+b.w,b.y); ctx.fill();
+    const glow=(b.far?.35:.55)*sunI*(.5+.5*b.tone);
+    ctx.strokeStyle=rgba(mix(P.grassLit,P.leafBack,.5),glow); ctx.lineWidth=Math.max(.8,b.w*.35);
+    ctx.beginPath(); ctx.moveTo(lerp(b.x,mx,.5)-b.w*.6,lerp(b.y,my,.5)); ctx.quadraticCurveTo(mx-b.w*.55,my,tipx,tipy); ctx.stroke(); });
+  // wildflowers on stems (same wind)
+  flowers.forEach(f=>{const w=wind(f.x,t-.1)*.8, tx=f.x+w*f.h*.45, ty=f.y-f.h;
+    ctx.strokeStyle=mix(P.grass,P.ink,.2); ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.quadraticCurveTo(f.x+w*f.h*.15,f.y-f.h*.5,tx,ty); ctx.stroke();
+    ctx.fillStyle=mix(f.c,P.ink,.25); ctx.beginPath(); ctx.ellipse(tx,ty,7,4.5,w*.4,0,7); ctx.fill();
+    ctx.fillStyle=rgba(mix(f.c,P.sun,.4),.9*sunI); ctx.beginPath(); ctx.ellipse(tx-2.5,ty-1.5,4.5,2.6,w*.4,0,7); ctx.fill(); });
+
+  // ---- floating pollen in the light (brightest near the rays)
+  motes.forEach(m=>{const x=m.x+Math.sin(t*.6+m.ph)*14+t*m.v, y=m.y+Math.cos(t*.5+m.ph)*9-t*3, near=clamp(1-Math.hypot(x-T.sun.x-300,y-T.sun.y-180)/700);
+    ctx.fillStyle=rgba(P.sun,(.15+.55*near)*sunI*(.6+.4*Math.sin(t*2+m.ph))); ctx.beginPath(); ctx.arc(x,y,m.r,0,7); ctx.fill();});
+
+  // ---- lens: warm haze at the horizon, light vignette; foreground darkest
+  ctx.globalCompositeOperation='screen'; g=ctx.createLinearGradient(0,520,0,720); g.addColorStop(0,rgba(P.skyWarm,0)); g.addColorStop(.5,rgba(P.skyWarm,.22*sunI)); g.addColorStop(1,rgba(P.skyWarm,0)); ctx.fillStyle=g; ctx.fillRect(-60,520,W+120,200);
+  ctx.globalCompositeOperation='multiply'; g=ctx.createLinearGradient(0,880,0,1100); g.addColorStop(0,'#ffffff'); g.addColorStop(1,mix('#ffffff',P.leafShade,.62)); ctx.fillStyle=g; ctx.fillRect(-60,880,W+120,240);
+  ctx.globalCompositeOperation='soft-light'; g=ctx.createRadialGradient(T.sun.x,T.sun.y,50,T.sun.x,T.sun.y,1500); g.addColorStop(0,rgba(P.skyWarm,.35*sunI)); g.addColorStop(1,rgba(P.skyWarm,.04)); ctx.fillStyle=g; ctx.fillRect(-60,-60,W+120,H+120);
+  ctx.globalCompositeOperation='source-over'; ctx.setTransform(1,0,0,1,0,0);
+  g=ctx.createRadialGradient(W*.45,H*.5,H*.55,W*.45,H*.5,H*1.1); g.addColorStop(0,rgba(P.ink,0)); g.addColorStop(1,rgba(P.ink,.32)); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+};
+draw(0); window.ready=true;
+</script></body></html>
